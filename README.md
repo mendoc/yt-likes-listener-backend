@@ -2,6 +2,8 @@
 
 Backend Netlify Functions pour automatiser le téléchargement d'audio des vidéos YouTube aimées.
 
+YT Likes Listener est une application qui télécharge automatiquement l'audio des vidéos YouTube aimées par l'utilisateur.
+
 ## Installation
 
 ```bash
