@@ -9,7 +9,8 @@
       "Bash(curl:*)",
       "Bash(npx tsc:*)",
       "WebFetch(domain:firebase.google.com)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(git pull:*)"
     ],
     "deny": []
   }

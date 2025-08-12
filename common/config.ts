@@ -10,6 +10,8 @@ export interface FirebaseConfig {
 
 export interface YouTubeConfig {
   apiKey: string;
+  clientId: string;
+  clientSecret: string;
 }
 
 export interface GoogleAuthConfig {
@@ -27,6 +29,8 @@ export const firebaseConfig: FirebaseConfig = {
 // Configuration YouTube API
 export const youtubeConfig: YouTubeConfig = {
   apiKey: process.env.YOUTUBE_API_KEY || '',
+  clientId: process.env.GOOGLE_CLIENT_ID || '',
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
 };
 
 // Configuration Google OAuth

@@ -10,6 +10,7 @@ export interface User {
   fcmToken: string;
   lastSyncTimestamp: Date;
   isActive: boolean;
+  youtubeRefreshToken?: string;  // OAuth refresh token pour YouTube API
 }
 
 // Types de téléchargement
@@ -42,6 +43,7 @@ export interface ApiResponse<T = unknown> {
 
 export interface AuthVerifyRequest {
   firebaseToken: string;
+  youtubeRefreshToken?: string; // Refresh token YouTube depuis l'app mobile
 }
 
 export interface AuthVerifyResponse {

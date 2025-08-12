@@ -50,5 +50,23 @@ npm run deploy:prod
 
 ## Endpoints
 
+**URL de production** : https://ytlikeslistener.netlify.app
+
 - `POST /api/auth/verify` - Vérification token Firebase
-- `POST /api/youtube/poll-likes` - Polling des nouveaux likes YouTube
+- `POST /api/youtube/poll-likes` - Polling des nouveaux likes YouTube  
+- `GET /api/health` - Vérification santé du service
+- `GET /api/stats` - Statistiques d'utilisation
+
+## Tests en production
+
+```bash
+# Health check
+curl https://ytlikeslistener.netlify.app/api/health
+
+# Statistiques
+curl https://ytlikeslistener.netlify.app/api/stats
+
+# Polling (pour cron)
+curl -X POST https://ytlikeslistener.netlify.app/api/youtube/poll-likes \
+  -H "Content-Type: application/json" -d "{}"
+```

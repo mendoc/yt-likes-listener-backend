@@ -81,7 +81,11 @@ export default async (request: Request): Promise<Response> => {
     });
 
     // Processus de vérification et synchronisation
-    const verificationResult = await authService.verifyAndSyncUser(body.firebaseToken);
+    const verificationResult = await authService.verifyAndSyncUser(
+      body.firebaseToken, 
+      undefined, // fcmToken sera dans un endpoint séparé
+      body.youtubeRefreshToken
+    );
 
     if (!verificationResult.success) {
       let statusCode = 401; // Unauthorized par défaut

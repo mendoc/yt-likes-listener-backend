@@ -49,7 +49,7 @@ export class AuthService {
   /**
    * Synchroniser l'utilisateur avec la base de données
    */
-  async syncUserWithDatabase(decodedToken: DecodedToken, fcmToken?: string): Promise<User> {
+  async syncUserWithDatabase(decodedToken: DecodedToken, fcmToken?: string, youtubeRefreshToken?: string): Promise<User> {
     try {
       const userId = decodedToken.uid;
       
@@ -63,6 +63,7 @@ export class AuthService {
         fcmToken: fcmToken || existingUser?.fcmToken || '',
         isActive: true,
         lastSyncTimestamp: existingUser?.lastSyncTimestamp || new Date(0),
+        youtubeRefreshToken: youtubeRefreshToken || existingUser?.youtubeRefreshToken,
       };
 
       // Créer ou mettre à jour l'utilisateur
@@ -168,7 +169,7 @@ export class AuthService {
   /**
    * Processus complet de vérification et synchronisation
    */
-  async verifyAndSyncUser(idToken: string, fcmToken?: string): Promise<{
+  async verifyAndSyncUser(idToken: string, fcmToken?: string, youtubeRefreshToken?: string): Promise<{
     success: boolean;
     user?: User;
     hasYouTubePermissions?: boolean;
@@ -190,7 +191,16 @@ export class AuthService {
       }
       
       // Étape 3: Synchroniser avec la base de données
-      const user = await this.syncUserWithDatabase(decodedToken, fcmToken);
+      const user = await this.syncUserWithDatabase(decodedToken, fcmToken, youtubeRefreshToken);
+      
+      // Vérifier que l'utilisateur a un refresh token YouTube
+      if (!user.youtubeRefreshToken) {
+        return {
+          success: false,
+          hasYouTubePermissions: false,
+          error: 'Refresh token YouTube manquant'
+        };
+      }
       
       return {
         success: true,

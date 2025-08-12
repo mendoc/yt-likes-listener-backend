@@ -131,44 +131,123 @@ export class YouTubeService {
   }
 
   /**
+   * Obtenir un access token à partir du refresh token
+   */
+  private async getAccessTokenFromRefreshToken(refreshToken: string): Promise<string> {
+    try {
+      const oauth2Client = new google.auth.OAuth2(
+        youtubeConfig.clientId,
+        youtubeConfig.clientSecret
+      );
+
+      oauth2Client.setCredentials({
+        refresh_token: refreshToken,
+      });
+
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      
+      if (!credentials.access_token) {
+        throw new Error('Impossible d\'obtenir un access token');
+      }
+
+      return credentials.access_token;
+    } catch (error) {
+      console.error('Erreur refresh token:', error);
+      throw new Error('Token d\'accès expiré ou invalide');
+    }
+  }
+
+  /**
+   * Créer un client YouTube authentifié pour un utilisateur
+   */
+  private async getAuthenticatedYouTubeClient(refreshToken: string): Promise<youtube_v3.Youtube> {
+    const accessToken = await this.getAccessTokenFromRefreshToken(refreshToken);
+    
+    const oauth2Client = new google.auth.OAuth2(
+      youtubeConfig.clientId,
+      youtubeConfig.clientSecret
+    );
+
+    oauth2Client.setCredentials({
+      access_token: accessToken,
+    });
+
+    return google.youtube({
+      version: 'v3',
+      auth: oauth2Client,
+    });
+  }
+
+  /**
    * Vérifier les nouveaux likes pour un utilisateur via l'API YouTube
-   * Note: Cette fonction simule l'appel à l'API "Liked Videos" qui nécessite OAuth
    */
   async checkNewLikesForUser(user: User): Promise<YouTubeLikedVideo[]> {
     try {
-      console.log(`Vérification des likes pour ${user.email}`);
+      console.log(`🔍 Vérification des likes pour ${user.email}`);
 
-      // IMPORTANT: Dans un environnement réel, cette fonction devrait :
-      // 1. Utiliser le refresh token de l'utilisateur pour obtenir un access token
-      // 2. Faire l'appel à l'API YouTube avec les credentials de l'utilisateur
-      // 3. Récupérer uniquement les likes depuis lastSyncTimestamp
-      
-      // Pour la simulation, nous retournons une liste vide
-      // En production, le code ressemblerait à :
-      /*
-      const oauth2Client = new google.auth.OAuth2();
-      oauth2Client.setCredentials({
-        access_token: await this.getAccessTokenFromRefreshToken(user.refreshToken),
-      });
+      // Vérifier que l'utilisateur a un refresh token
+      if (!user.youtubeRefreshToken) {
+        console.log(`⚠️ Utilisateur ${user.email} n'a pas de refresh token YouTube`);
+        return [];
+      }
 
-      const youtubeWithAuth = google.youtube({
-        version: 'v3',
-        auth: oauth2Client,
-      });
+      // Créer un client YouTube authentifié
+      const youtubeWithAuth = await this.getAuthenticatedYouTubeClient(user.youtubeRefreshToken);
 
+      // Appeler l'API pour récupérer les vidéos aimées
       const response = await youtubeWithAuth.videos.list({
         part: ['snippet', 'contentDetails'],
         myRating: 'like',
         maxResults: 50,
+        // Note: YouTube API ne supporte pas de filtrage par date pour myRating
+        // Nous devrons filtrer côté serveur
       });
-      */
 
-      // Pour le développement, retourner une liste vide
-      console.log(`Simulation: aucun nouveau like trouvé pour ${user.email}`);
-      return [];
+      if (!response.data.items || response.data.items.length === 0) {
+        console.log(`📋 Aucune vidéo aimée trouvée pour ${user.email}`);
+        return [];
+      }
+
+      // Convertir en format YouTubeLikedVideo et filtrer par date
+      const likedVideos: YouTubeLikedVideo[] = [];
+      
+      for (const item of response.data.items) {
+        // Vérifier si la vidéo a été aimée après le dernier sync
+        // Note: YouTube API ne donne pas la date du "like", nous utilisons publishedAt comme approximation
+        const publishedAt = new Date(item.snippet?.publishedAt || 0);
+        
+        if (publishedAt > user.lastSyncTimestamp) {
+          const video: YouTubeLikedVideo = {
+            videoId: item.id!,
+            title: item.snippet?.title || 'Titre inconnu',
+            duration: item.contentDetails?.duration || undefined,
+            publishedAt: item.snippet?.publishedAt || undefined,
+            channelTitle: item.snippet?.channelTitle || undefined,
+            thumbnailUrl: item.snippet?.thumbnails?.medium?.url || 
+                        item.snippet?.thumbnails?.default?.url || undefined,
+            isShort: item.contentDetails?.duration ? 
+                    this.isYouTubeShort(item.contentDetails.duration) : false,
+          };
+          
+          likedVideos.push(video);
+        }
+      }
+
+      console.log(`✅ Trouvé ${likedVideos.length} nouveaux likes pour ${user.email}`);
+      return likedVideos;
 
     } catch (error) {
-      console.error(`Erreur vérification likes pour ${user.email}:`, error);
+      console.error(`❌ Erreur vérification likes pour ${user.email}:`, error);
+      
+      // Si le token est invalide, on peut marquer l'utilisateur comme inactif
+      if (error instanceof Error && error.message.includes('Token d\'accès expiré')) {
+        console.log(`🔒 Token expiré pour ${user.email}, utilisateur marqué comme inactif`);
+        await this.databaseService.createOrUpdateUser({
+          userId: user.userId,
+          isActive: false
+        });
+      }
+      
       return [];
     }
   }

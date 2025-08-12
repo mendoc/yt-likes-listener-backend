@@ -58,6 +58,7 @@ export class DatabaseService {
         fcmToken: data?.fcmToken || '',
         lastSyncTimestamp: data?.lastSyncTimestamp?.toDate() || new Date(0),
         isActive: data?.isActive !== false, // true par défaut
+        youtubeRefreshToken: data?.youtubeRefreshToken || undefined,
       };
     } catch (error) {
       console.error('Erreur récupération utilisateur:', error);
@@ -107,6 +108,7 @@ export class DatabaseService {
               fcmToken: data?.fcmToken || '',
               lastSyncTimestamp: data?.lastSyncTimestamp?.toDate() || new Date(0),
               isActive: isActive,
+              youtubeRefreshToken: data?.youtubeRefreshToken || undefined,
             });
           }
         }

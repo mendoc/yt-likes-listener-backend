@@ -68,9 +68,10 @@ netlify deploy --prod
 ### 1. Authentication `/api/auth/verify`
 ```typescript
 // POST /api/auth/verify
-// Vérifier token Firebase et synchroniser avec YouTube
+// Vérifier token Firebase et sauvegarder refresh token YouTube
 {
-  "firebaseToken": "string"
+  "firebaseToken": "string",
+  "youtubeRefreshToken": "string" // Refresh token obtenu par l'app mobile
 } 
 → {
   "success": boolean,
@@ -110,13 +111,22 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 ```
 
+## Workflow d'Authentification
+
+1. **App Android** → authentification Firebase avec scopes YouTube
+2. **App Android** → obtient refresh token YouTube via OAuth
+3. **App Android** → appelle `/api/auth/verify` avec tokens Firebase + YouTube  
+4. **Backend** → vérifie le token Firebase et sauvegarde le refresh token
+5. **Utilisateur** → maintenant éligible pour polling automatique
+
 ## Workflow de Polling
 
 1. **Cron externe** (cron-job.org) → appelle `/api/youtube/poll-likes` toutes les 5 minutes
-2. **Backend** récupère tous les utilisateurs actifs depuis Firestore
+2. **Backend** récupère tous les utilisateurs actifs avec refresh token depuis Firestore
 3. Pour chaque utilisateur :
-   - Récupère `lastSyncTimestamp` 
-   - Appelle YouTube Data API : "likes depuis timestamp X"
+   - Utilise le refresh token pour obtenir un access token
+   - Appelle YouTube Data API : "myRating=like" pour récupérer likes
+   - Filtre les vidéos selon `lastSyncTimestamp`
    - Si nouveaux likes → met à jour Firestore + appelle fonction FCM interne
 4. **FCM interne** envoie les `videoId` à l'app Android
 5. **App Android** reçoit FCM → déclenche téléchargements automatiquement
@@ -196,6 +206,14 @@ export default async (request: Request, context: Context): Promise<Response> => 
 ## Configuration Cron Externe
 
 Utiliser cron-job.org pour appeler `/api/youtube/poll-likes` toutes les 5 minutes.
+
+**URL de production** : https://ytlikeslistener.netlify.app
+
+Configuration cron-job.org :
+- URL : `https://ytlikeslistener.netlify.app/api/youtube/poll-likes`
+- Méthode : POST
+- Fréquence : `*/5 * * * *` (toutes les 5 minutes)
+- Headers : `Content-Type: application/json`
 
 ## État du Projet
 
