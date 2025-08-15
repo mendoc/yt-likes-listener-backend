@@ -52,30 +52,18 @@ export class FCMService {
 
       const videoIds = videos.map(v => v.videoId);
       
-      // Construire le message FCM
+      // Construire le message FCM (data-only pour déclenchement automatique)
       const message: admin.messaging.Message = {
         token: user.fcmToken,
         data: {
           type: 'new_likes',
           videoIds: JSON.stringify(videoIds),
           count: videos.length.toString(),
-        },
-        notification: {
+          // Notification dans data pour Android
           title: 'Nouvelles musiques disponibles !',
           body: videos.length === 1 
             ? `"${videos[0].title}" est prêt à télécharger`
             : `${videos.length} nouvelles musiques à télécharger`,
-        },
-        android: {
-          priority: 'high',
-          notification: {
-            icon: 'ic_notification',
-            color: '#FF0000',
-            channelId: 'downloads',
-          },
-          data: {
-            click_action: 'FLUTTER_NOTIFICATION_CLICK',
-          },
         },
       };
 

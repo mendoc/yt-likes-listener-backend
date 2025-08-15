@@ -24,16 +24,19 @@ Inspirée de `mendoc/clara-speaker-backend`, utilise une architecture modulaire 
 ```
 yt-likes-listener-backend/
 ├── common/                    # Configuration centralisée
-│   └── config.ts             # Variables d'environnement
+│   ├── config.ts             # Variables d'environnement et validation
+│   ├── responseHelpers.ts    # Utilitaires pour les réponses HTTP
+│   └── types.ts              # Types TypeScript partagés
 ├── services/                 # Couche service modulaire
 │   ├── DatabaseService.ts    # Firebase Firestore operations
 │   ├── AuthService.ts        # Firebase Auth + YouTube verification
 │   ├── YouTubeService.ts     # YouTube Data API v3
 │   └── FCMService.ts         # Firebase Cloud Messaging
-├── netlify/functions/        # Fonctions serverless
-│   ├── auth/                 # /api/auth/verify endpoint
-│   ├── youtube/              # /api/youtube/poll-likes endpoint
-│   └── utils/                # Utilitaires partagés
+├── netlify/functions/        # Fonctions serverless (extension .mts)
+│   ├── verify/               # /api/auth/verify - Authentification
+│   ├── poll-likes/           # /api/youtube/poll-likes - Polling
+│   ├── health/               # /api/health - Health check
+│   └── stats/                # /api/stats - Statistiques d'usage
 ├── package.json
 ├── tsconfig.json
 └── netlify.toml
@@ -54,16 +57,16 @@ netlify dev
 npm run build
 npm run lint
 
-# Tests
-npm test
-npm run test:watch
+# Tests (à implémenter)
+npm test          # Placeholder - Tests à implémenter
+npm run test:watch # Placeholder - Tests watch à implémenter
 
 # Déploiement
 netlify deploy
 netlify deploy --prod
 ```
 
-## Endpoints à Implémenter
+## Endpoints Implémentés
 
 ### 1. Authentication `/api/auth/verify`
 ```typescript
@@ -71,12 +74,13 @@ netlify deploy --prod
 // Vérifier token Firebase et sauvegarder refresh token YouTube
 {
   "firebaseToken": "string",
-  "youtubeRefreshToken": "string" // Refresh token obtenu par l'app mobile
+  "youtubeRefreshToken"?: "string", // Refresh token obtenu par l'app mobile
+  "youtubeServerAuthCode"?: "string" // Alternative au refresh token
 } 
 → {
   "success": boolean,
   "userId": "string", 
-  "youtubeChannelId": "string"
+  "youtubeChannelId"?: "string"
 }
 ```
 
@@ -93,7 +97,34 @@ netlify deploy --prod
 }
 ```
 
-### 3. Fonction Interne FCM
+### 3. Health Check `/api/health`
+```typescript
+// GET /api/health
+// Vérification de l'état du service
+→ {
+  "status": "healthy" | "unhealthy",
+  "timestamp": "string",
+  "version": "string",
+  "services": {
+    "firebase": boolean,
+    "youtube": boolean
+  }
+}
+```
+
+### 4. Statistiques `/api/stats`
+```typescript
+// GET /api/stats
+// Statistiques d'utilisation du service
+→ {
+  "totalUsers": number,
+  "activeUsers": number,
+  "totalDownloads": number,
+  "lastPollTime": "string"
+}
+```
+
+### 5. Fonction Interne FCM
 ```typescript
 // sendFCMNotification(userId: string, videoIds: string[])
 // Envoie les videoId via FCM à l'app Android
@@ -167,41 +198,79 @@ if (!admin.apps.length) {
 }
 ```
 
-### Structure Fonction Netlify
+### Structure Fonction Netlify (fichiers .mts)
 ```typescript
-import type { Context } from "@netlify/functions";
+import { validateConfig } from '../../../common/config';
+import { ErrorResponse } from '../../../common/types';
 
-export default async (request: Request, context: Context): Promise<Response> => {
-  if (request.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+// Validation de la configuration au démarrage
+try {
+  validateConfig();
+} catch (error) {
+  console.error('Configuration invalide:', error);
+}
+
+export default async (request: Request): Promise<Response> => {
+  // Headers CORS standardisés
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  };
+
+  // Gérer les requêtes OPTIONS (preflight CORS)
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 200, headers });
   }
   
   try {
-    const body = await request.json();
-    // Validation + logique métier
+    // Validation méthode HTTP + parsing body si nécessaire
+    const body = request.method !== 'GET' ? await request.json() : null;
     
-    return new Response(JSON.stringify({ success: true, data: result }), {
+    // Logique métier avec services
+    const result = await serviceMethod(body);
+    
+    return new Response(JSON.stringify(result), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers
     });
     
   } catch (error) {
-    console.error('Erreur:', error);
-    return new Response(JSON.stringify({ error: 'Erreur interne' }), {
+    console.error('Erreur endpoint:', error);
+    
+    const errorResponse: ErrorResponse = {
+      error: 'Erreur interne du serveur',
+      code: 'INTERNAL_SERVER_ERROR',
+      details: process.env.NODE_ENV === 'development' ? 
+        {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        } : undefined,
+    };
+
+    return new Response(JSON.stringify(errorResponse), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers
     });
   }
+};
+
+export const config = {
+  path: "/api/endpoint-name",
 };
 ```
 
 ## Points d'Attention
 
+- **Extensions de fichiers** : Les fonctions Netlify utilisent l'extension `.mts` (TypeScript modules)
+- **CORS** : Toutes les fonctions incluent les headers CORS pour les requêtes cross-origin
+- **Error handling** : Structure d'erreur standardisée avec types `ErrorResponse`
 - **Rate limiting** : YouTube API a des quotas (10,000 units/jour)
 - **Polling efficace** : Batch processing pour tous les utilisateurs en une seule exécution
-- **Error handling** : Gérer timeouts et erreurs API gracefully
 - **Sécurité** : Valider tous les tokens Firebase côté serveur
 - **Performance** : Optimiser pour exécution toutes les 5 minutes
+- **Configuration** : Validation automatique des variables d'environnement au démarrage
 
 ## Configuration Cron Externe
 
