@@ -43,7 +43,8 @@ export interface ApiResponse<T = unknown> {
 
 export interface AuthVerifyRequest {
   firebaseToken: string;
-  youtubeRefreshToken?: string; // Refresh token YouTube depuis l'app mobile
+  youtubeRefreshToken?: string; // Refresh token YouTube (ancien format)
+  youtubeServerAuthCode?: string; // Server auth code à échanger (nouveau format)
 }
 
 export interface AuthVerifyResponse {

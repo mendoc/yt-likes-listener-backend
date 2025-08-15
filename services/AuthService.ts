@@ -3,6 +3,8 @@
  */
 
 import admin from 'firebase-admin';
+import { google } from 'googleapis';
+import { googleAuthConfig } from '../common/config';
 import { DatabaseService } from './DatabaseService';
 import { User } from '../common/types';
 
@@ -44,6 +46,36 @@ export class AuthService {
     } catch (error) {
       console.error('Erreur vérification token Firebase:', error);
       throw new Error('Token Firebase invalide ou expiré');
+    }
+  }
+
+  /**
+   * Échanger un serverAuthCode contre un refresh token YouTube
+   */
+  async exchangeServerAuthCodeForRefreshToken(serverAuthCode: string): Promise<string> {
+    try {
+      console.log('Échange du serverAuthCode contre un refresh token');
+      
+      const oauth2Client = new google.auth.OAuth2(
+        googleAuthConfig.clientId,
+        googleAuthConfig.clientSecret
+        // Pas de redirect URI pour l'échange de serverAuthCode mobile
+      );
+
+      // Échanger le code contre des tokens
+      const response = await oauth2Client.getToken(serverAuthCode);
+      const tokens = response.tokens;
+      
+      if (!tokens.refresh_token) {
+        throw new Error('Aucun refresh token reçu de Google');
+      }
+
+      console.log('Refresh token obtenu avec succès');
+      return tokens.refresh_token;
+      
+    } catch (error) {
+      console.error('Erreur échange serverAuthCode:', error);
+      throw new Error('Impossible d\'échanger le serverAuthCode contre un refresh token');
     }
   }
 
@@ -170,7 +202,7 @@ export class AuthService {
   /**
    * Processus complet de vérification et synchronisation
    */
-  async verifyAndSyncUser(idToken: string, fcmToken?: string, youtubeRefreshToken?: string): Promise<{
+  async verifyAndSyncUser(idToken: string, fcmToken?: string, youtubeServerAuthCode?: string): Promise<{
     success: boolean;
     user?: User;
     hasYouTubePermissions?: boolean;
@@ -191,7 +223,19 @@ export class AuthService {
         };
       }
       
-      // Étape 3: Synchroniser avec la base de données
+      // Étape 3: Échanger le serverAuthCode contre un refresh token si fourni
+      let youtubeRefreshToken: string | undefined;
+      if (youtubeServerAuthCode) {
+        try {
+          youtubeRefreshToken = await this.exchangeServerAuthCodeForRefreshToken(youtubeServerAuthCode);
+          console.log('✅ ServerAuthCode échangé avec succès');
+        } catch (error) {
+          console.warn('⚠️ Impossible d\'échanger le serverAuthCode:', error);
+          // On continue sans refresh token plutôt que d'échouer complètement
+        }
+      }
+      
+      // Étape 4: Synchroniser avec la base de données
       const user = await this.syncUserWithDatabase(decodedToken, fcmToken, youtubeRefreshToken);
       
       // Vérifier que l'utilisateur a un refresh token YouTube

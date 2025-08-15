@@ -84,7 +84,7 @@ export default async (request: Request): Promise<Response> => {
     const verificationResult = await authService.verifyAndSyncUser(
       body.firebaseToken, 
       undefined, // fcmToken sera dans un endpoint séparé
-      body.youtubeRefreshToken
+      body.youtubeRefreshToken || body.youtubeServerAuthCode // Support des deux formats
     );
 
     if (!verificationResult.success) {
