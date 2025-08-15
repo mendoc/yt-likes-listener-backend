@@ -224,3 +224,4 @@ L'application Android est 100% fonctionnelle avec FCM intégré. Elle attend uni
 - Toujours communiquer en français
 - Ne jamais mettre "claude" dans les messages de commit
 - Utiliser les termes "Ajouter", "Modifier", "Corriger" pour les commits
+- to memorize  Souviens-toi de toujours discuter avec moi en français

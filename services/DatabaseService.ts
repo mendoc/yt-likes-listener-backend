@@ -34,7 +34,6 @@ export class DatabaseService {
           projectId: firebaseConfig.projectId,
         });
         console.log('Firebase Admin initialisé avec succès');
-        console.log('firebaseConfig', firebaseConfig);
       } catch (error) {
         console.error('Erreur initialisation Firebase Admin:', error);
         throw new Error('Échec de l\'initialisation Firebase Admin');

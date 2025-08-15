@@ -2,7 +2,7 @@
  * Service Firebase Cloud Messaging pour YT-Likes-Listener
  */
 
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
 import { fcmConfig } from '../common/config';
 // Types removed from import - can be imported if needed later
 import { DatabaseService } from './DatabaseService';

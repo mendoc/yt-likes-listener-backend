@@ -10,7 +10,10 @@
       "Bash(npx tsc:*)",
       "WebFetch(domain:firebase.google.com)",
       "Bash(git reset:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(test-verify.bat)",
+      "Bash(node:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

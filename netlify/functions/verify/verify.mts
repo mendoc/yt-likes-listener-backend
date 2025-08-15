@@ -146,7 +146,11 @@ export default async (request: Request): Promise<Response> => {
       error: 'Erreur interne du serveur',
       code: 'INTERNAL_SERVER_ERROR',
       details: process.env.NODE_ENV === 'development' ? 
-        (error instanceof Error ? error.message : String(error)) : undefined,
+        {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          type: error instanceof Error ? error.constructor.name : typeof error
+        } : undefined,
     };
 
     return new Response(JSON.stringify(errorResponse), {

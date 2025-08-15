@@ -2,7 +2,7 @@
  * Service d'authentification pour YT-Likes-Listener
  */
 
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
 import { DatabaseService } from './DatabaseService';
 import { User } from '../common/types';
 
@@ -22,6 +22,7 @@ export class AuthService {
   private databaseService: DatabaseService;
 
   private constructor() {
+    // DatabaseService va initialiser Firebase, donc on l'instancie en premier
     this.databaseService = DatabaseService.getInstance();
   }
 
