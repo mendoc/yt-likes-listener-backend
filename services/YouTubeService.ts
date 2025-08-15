@@ -144,7 +144,12 @@ export class YouTubeService {
         refresh_token: refreshToken,
       });
 
-      const { credentials } = await oauth2Client.refreshAccessToken();
+      const { credentials } = await Promise.race([
+        oauth2Client.refreshAccessToken(),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout refresh token après 10s')), 10000)
+        )
+      ]);
       
       if (!credentials.access_token) {
         throw new Error('Impossible d\'obtenir un access token');
@@ -180,6 +185,7 @@ export class YouTubeService {
 
   /**
    * Vérifier les nouveaux likes pour un utilisateur via l'API YouTube
+   * Implémente une logique de baseline pour détecter les nouveaux likes
    */
   async checkNewLikesForUser(user: User): Promise<YouTubeLikedVideo[]> {
     try {
@@ -194,47 +200,74 @@ export class YouTubeService {
       // Créer un client YouTube authentifié
       const youtubeWithAuth = await this.getAuthenticatedYouTubeClient(user.youtubeRefreshToken);
 
-      // Appeler l'API pour récupérer les vidéos aimées
-      const response = await youtubeWithAuth.videos.list({
-        part: ['snippet', 'contentDetails'],
-        myRating: 'like',
-        maxResults: 50,
-        // Note: YouTube API ne supporte pas de filtrage par date pour myRating
-        // Nous devrons filtrer côté serveur
-      });
+      // Appeler l'API pour récupérer les vidéos aimées avec timeout
+      const response = await Promise.race([
+        youtubeWithAuth.videos.list({
+          part: ['snippet', 'contentDetails'],
+          myRating: 'like',
+          maxResults: 50,
+        }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout YouTube API après 15s')), 15000)
+        )
+      ]);
 
       if (!response.data.items || response.data.items.length === 0) {
         console.log(`📋 Aucune vidéo aimée trouvée pour ${user.email}`);
         return [];
       }
 
-      // Convertir en format YouTubeLikedVideo et filtrer par date
-      const likedVideos: YouTubeLikedVideo[] = [];
-      
+      // Convertir en format YouTubeLikedVideo
+      const currentLikes: YouTubeLikedVideo[] = [];
       for (const item of response.data.items) {
-        // Vérifier si la vidéo a été aimée après le dernier sync
-        // Note: YouTube API ne donne pas la date du "like", nous utilisons publishedAt comme approximation
-        const publishedAt = new Date(item.snippet?.publishedAt || 0);
-        
-        if (publishedAt > user.lastSyncTimestamp) {
-          const video: YouTubeLikedVideo = {
-            videoId: item.id!,
-            title: item.snippet?.title || 'Titre inconnu',
-            duration: item.contentDetails?.duration || undefined,
-            publishedAt: item.snippet?.publishedAt || undefined,
-            channelTitle: item.snippet?.channelTitle || undefined,
-            thumbnailUrl: item.snippet?.thumbnails?.medium?.url || 
-                        item.snippet?.thumbnails?.default?.url || undefined,
-            isShort: item.contentDetails?.duration ? 
-                    this.isYouTubeShort(item.contentDetails.duration) : false,
-          };
-          
-          likedVideos.push(video);
-        }
+        const video: YouTubeLikedVideo = {
+          videoId: item.id!,
+          title: item.snippet?.title || 'Titre inconnu',
+          duration: item.contentDetails?.duration || undefined,
+          publishedAt: item.snippet?.publishedAt || undefined,
+          channelTitle: item.snippet?.channelTitle || undefined,
+          thumbnailUrl: item.snippet?.thumbnails?.medium?.url || 
+                      item.snippet?.thumbnails?.default?.url || undefined,
+          isShort: item.contentDetails?.duration ? 
+                  this.isYouTubeShort(item.contentDetails.duration) : false,
+        };
+        currentLikes.push(video);
       }
 
-      console.log(`✅ Trouvé ${likedVideos.length} nouveaux likes pour ${user.email}`);
-      return likedVideos;
+      // Vérifier si l'utilisateur est initialisé
+      if (!user.isInitialized || !user.baselineVideoIds) {
+        console.log(`📝 Initialisation baseline pour ${user.email} avec ${currentLikes.length} likes`);
+        
+        // Créer le tableau des IDs de baseline
+        const baselineVideoIds = currentLikes.map(video => video.videoId);
+        
+        // Marquer l'utilisateur comme initialisé avec la baseline
+        await this.databaseService.createOrUpdateUser({
+          userId: user.userId,
+          isInitialized: true,
+          baselineVideoIds: baselineVideoIds
+        });
+        
+        console.log(`✅ Baseline créée avec ${currentLikes.length} vidéos pour ${user.email}`);
+        return []; // Pas de nouveaux likes lors de l'initialisation
+      }
+
+      // Détecter les nouvelles vidéos en comparant avec la baseline
+      const newLikes = currentLikes.filter(video => 
+        !user.baselineVideoIds!.includes(video.videoId)
+      );
+      
+      // Mettre à jour la baseline avec les nouveaux IDs
+      if (newLikes.length > 0) {
+        const updatedBaselineIds = [...user.baselineVideoIds!, ...newLikes.map(v => v.videoId)];
+        await this.databaseService.createOrUpdateUser({
+          userId: user.userId,
+          baselineVideoIds: updatedBaselineIds
+        });
+      }
+      
+      console.log(`✅ Trouvé ${newLikes.length} nouveaux likes pour ${user.email}`);
+      return newLikes;
 
     } catch (error) {
       console.error(`❌ Erreur vérification likes pour ${user.email}:`, error);

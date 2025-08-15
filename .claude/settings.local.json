@@ -13,7 +13,9 @@
       "Bash(git pull:*)",
       "Bash(test-verify.bat)",
       "Bash(node:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npm run dev:*)",
+      "Bash(pkill:*)"
     ],
     "deny": []
   }

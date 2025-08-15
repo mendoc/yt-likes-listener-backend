@@ -11,6 +11,8 @@ export interface User {
   lastSyncTimestamp: Date;
   isActive: boolean;
   youtubeRefreshToken?: string;  // OAuth refresh token pour YouTube API
+  isInitialized?: boolean;  // Indique si les 50 premiers likes ont été initialisés comme baseline
+  baselineVideoIds?: string[];  // IDs des vidéos de la baseline initiale
 }
 
 // Types de téléchargement

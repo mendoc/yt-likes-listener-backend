@@ -79,8 +79,13 @@ export class FCMService {
         },
       };
 
-      // Envoyer la notification
-      const response = await admin.messaging().send(message);
+      // Envoyer la notification avec timeout
+      const response = await Promise.race([
+        admin.messaging().send(message),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout FCM après 10s')), 10000)
+        )
+      ]);
       
       console.log(`Notification FCM envoyée à ${user.email}: ${response}`);
       

@@ -58,6 +58,8 @@ export class DatabaseService {
         lastSyncTimestamp: data?.lastSyncTimestamp?.toDate() || new Date(0),
         isActive: data?.isActive !== false, // true par défaut
         youtubeRefreshToken: data?.youtubeRefreshToken || undefined,
+        isInitialized: data?.isInitialized ?? false,
+        baselineVideoIds: data?.baselineVideoIds ?? undefined,
       };
     } catch (error) {
       console.error('Erreur récupération utilisateur:', error);
@@ -108,6 +110,8 @@ export class DatabaseService {
               lastSyncTimestamp: data?.lastSyncTimestamp?.toDate() || new Date(0),
               isActive: isActive,
               youtubeRefreshToken: data?.youtubeRefreshToken || undefined,
+              isInitialized: data?.isInitialized ?? false,
+              baselineVideoIds: data?.baselineVideoIds ?? undefined,
             });
           }
         }
@@ -229,6 +233,7 @@ export class DatabaseService {
       throw new Error('Impossible de récupérer les téléchargements');
     }
   }
+
 
   // Statistiques
   async getStats(): Promise<{ totalUsers: number; activeUsers: number; totalDownloads: number }> {
